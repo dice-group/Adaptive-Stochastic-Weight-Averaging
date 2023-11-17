@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torchvision
 import torchvision.transforms as transforms
-
+import os
 from models import *
 
 from torch.utils.data import random_split
@@ -83,10 +83,9 @@ def get_model(name, resume: bool):
     if resume:
         # Load checkpoint.
         print('==> Resuming from checkpoint..')
-        assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-        checkpoint = torch.load('./checkpoint/ckpt.pth')
-        net.load_state_dict(checkpoint['net'])
-        acc = checkpoint['acc']
+        assert os.path.isdir('checkpoint')
+        checkpoint = torch.load(f'./checkpoint/{name}_checkpoint.pt')
+        model.load_state_dict(checkpoint['net'])
         epoch = checkpoint['epoch']
 
-    return model, acc, epoch
+    return model, epoch
