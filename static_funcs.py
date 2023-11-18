@@ -8,6 +8,55 @@ from models import *
 from torch.utils.data import random_split
 
 
+def is_val_acc_increasing(last_val_running_model, val_ensemble_model, val_acc_running_model, tolerant=3,
+                          window=6) -> bool:
+    assert tolerant >= 0
+    assert window >= tolerant
+
+    val_acc_running_model.append(last_val_running_model)
+
+    # (4) Does the validation performance of running model still increase?
+    if val_ensemble_model is None:
+        loss, loss_counter = 0.0, 0
+        # (5.1) Iterate over the most recent 10 MRR scores
+        for idx, acc in enumerate(val_acc_running_model[-window - 1:]):
+            if last_val_running_model > acc:
+                """No loss"""
+            else:
+                loss_counter += 1
+
+        if loss_counter >= tolerant:
+            return False
+        else:
+            return True
+    else:
+        return False
+
+
+def init_aswa(checkpoint, name, state_dict, val_acc, sample_counter, epoch):
+    state = {'aswa_ensemble': state_dict, "val_acc": val_acc,
+             "sample_counter": sample_counter, 'epoch': epoch}
+    if not os.path.isdir(checkpoint):
+        os.mkdir(checkpoint)
+    torch.save(state, f=f"{checkpoint}/ASWA_{name}_checkpoint.pt")
+
+
+def init_swa(checkpoint, name, state_dict, sample_counter, epoch):
+    state = {'swa_ensemble': state_dict, "sample_counter": sample_counter, 'epoch': epoch}
+    if not os.path.isdir(checkpoint):
+        os.mkdir(checkpoint)
+    torch.save(state, f=f"{checkpoint}/SWA_{name}_checkpoint.pt")
+
+
+def save_running_net(checkpoint, name, net, train_loss, train_acc, val_acc, epoch):
+    # Save the checkpoint
+    if not os.path.isdir(checkpoint):
+        os.mkdir(checkpoint)
+
+    torch.save({'net': net.state_dict(), 'train_loss': train_loss, "train_acc": train_acc, "val_acc": val_acc,
+                'epoch': epoch}, f=f"{checkpoint}/{name}_checkpoint.pt")
+
+
 def training(net, loader, loss_func, optimizer) -> float:
     net.train()
     sum_of_minibatch__loss = 0
@@ -65,9 +114,8 @@ def from_dataset_to_dataloader(batch_size=1024, num_workers=32, seed=1):
     return train_loader, val_loader, test_loader
 
 
-def get_model(name, resume: bool):
+def get_model(name, checkpoint, resume: bool = False):
     model = None
-    acc = 0
     epoch = 0
     if name == "lenet":
         model = LeNet()
@@ -82,9 +130,9 @@ def get_model(name, resume: bool):
 
     if resume:
         # Load checkpoint.
-        print('==> Resuming from checkpoint..')
-        assert os.path.isdir('checkpoint')
-        checkpoint = torch.load(f'./checkpoint/{name}_checkpoint.pt')
+        print('==> Loading')
+        assert os.path.isdir(checkpoint)
+        checkpoint = torch.load(f'{checkpoint}/{name}_checkpoint.pt')
         model.load_state_dict(checkpoint['net'])
         epoch = checkpoint['epoch']
 
