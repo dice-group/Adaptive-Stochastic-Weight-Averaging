@@ -3,9 +3,9 @@ import torch
 
 
 class ASWA:
-    def __init__(self, path: str,model_name:str):
+    def __init__(self, path: str, model_name: str):
         self.ensemble_state = torch.load(path)
-        self.running_model_name=model_name
+        self.running_model_name = model_name
         self.ensemble_state_dict = self.ensemble_state["aswa_ensemble"]
         self.val_acc_ensemble = self.ensemble_state["val_acc"]
         self.sample_counter = self.ensemble_state["sample_counter"]
@@ -24,7 +24,7 @@ class ASWA:
                 'epoch': epoch,
             }
             print(f"Hard update", end="\t")
-            torch.save(ensemble_state, f=f"./checkpoint/ASWA_{self.running_model_name}_checkpoint.pt")
+            torch.save(ensemble_state, f=f"checkpoint/ASWA_{self.running_model_name}_checkpoint.pt")
         elif updated_val_acc_ensemble_model > self.val_acc_ensemble:
             self.sample_counter += 1
             self.val_acc_ensemble = updated_val_acc_ensemble_model
@@ -35,7 +35,7 @@ class ASWA:
                 'epoch': epoch,
             }
             print(f"Soft Update", end="\t")
-            torch.save(ensemble_state, f=f"./checkpoint/ASWA_{self.running_model_name}_checkpoint.pt")
+            torch.save(ensemble_state, f=f"checkpoint/ASWA_{self.running_model_name}_checkpoint.pt")
         else:
             print(f"Reject Update", end="\t")
 
@@ -59,10 +59,11 @@ class ASWA:
         ensemble_net.load_state_dict(self.ensemble_state_dict)
         return compute_accuracy(ensemble_net, val_loader)
 
+
 class SWA:
-    def __init__(self, path: str,model_name:str):
+    def __init__(self, path: str, model_name: str):
         self.ensemble_state = torch.load(path)
-        self.running_model_name=model_name
+        self.running_model_name = model_name
         self.ensemble_state_dict = self.ensemble_state["swa_ensemble"]
         self.sample_counter = self.ensemble_state["sample_counter"]
 
@@ -75,11 +76,10 @@ class SWA:
         print(f" | Val SWA Ensemble: {updated_val_acc_ensemble_model:.4f}", end="")
         self.sample_counter += 1
         ensemble_state = {
-                'swa_ensemble': self.ensemble_state_dict,
-                "sample_counter": self.sample_counter,
-                'epoch': epoch}
-        torch.save(ensemble_state, f=f"./checkpoint/SWA_{self.running_model_name}_checkpoint.pt")
-
+            'swa_ensemble': self.ensemble_state_dict,
+            "sample_counter": self.sample_counter,
+            'epoch': epoch}
+        torch.save(ensemble_state, f=f"checkpoint/SWA_{self.running_model_name}_checkpoint.pt")
 
     def get_net(self, net):
         ensemble_net = type(net)()

@@ -4,8 +4,36 @@ import torchvision
 import torchvision.transforms as transforms
 import os
 from models import *
-
+import torch.optim as optim
 from torch.utils.data import random_split
+
+
+def gen_checkpoint_name(args):
+    if args.resume is None:
+        if args.swa:
+            flag = "_SWA"
+        elif args.aswa:
+            flag = "_ASWA"
+        elif args.early_stooping:
+            flag = "_ES"
+        else:
+            flag = ""
+        checkpoint_name = f"checkpoint_{args.model}{flag}"
+        resume = False
+    else:
+        checkpoint_name = args.resume
+        resume = True
+
+    return checkpoint_name, resume
+
+
+def get_optim(optim_name, params, lr):
+    if optim_name == "Adam":
+        optimizer = optim.Adam(params, lr=lr)
+    else:
+        optimizer = optim.SGD(params, lr=lr)
+
+    return optimizer
 
 
 def is_val_acc_increasing(last_val_running_model, val_ensemble_model, val_acc_running_model, tolerant=3,
@@ -114,9 +142,8 @@ def from_dataset_to_dataloader(batch_size=1024, num_workers=32, seed=1):
     return train_loader, val_loader, test_loader
 
 
-def get_model(name, checkpoint, resume: bool = False):
+def init_running_model(name):
     model = None
-    epoch = 0
     if name == "lenet":
         model = LeNet()
     elif name == "resnet18":
@@ -127,13 +154,4 @@ def get_model(name, checkpoint, resume: bool = False):
         model = VGG("VGG19")
     elif name == "densenet":
         model = DenseNet201()
-
-    if resume:
-        # Load checkpoint.
-        print('==> Loading')
-        assert os.path.isdir(checkpoint)
-        checkpoint = torch.load(f'{checkpoint}/{name}_checkpoint.pt')
-        model.load_state_dict(checkpoint['net'])
-        epoch = checkpoint['epoch']
-
-    return model, epoch
+    return model
