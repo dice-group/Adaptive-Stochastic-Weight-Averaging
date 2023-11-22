@@ -29,7 +29,6 @@ parser.add_argument('--optim', default="Adam", choices=["Adam", "SGD"], type=str
 parser.add_argument('--num_workers', default=4, type=int)
 parser.add_argument('--plot', action="store_true")
 
-
 args = parser.parse_args()
 print("Config:", args)
 # Data
@@ -83,11 +82,10 @@ elif args.swa and args.resume and os.path.exists(f"{checkpoint_name}/SWA_{args.m
     size_swa = swa_ensemble_state["size"]
 else:
     train_acc_aswa = []
-    val_acc_aswa =  []
+    val_acc_aswa = []
 
-    train_acc_swa =  []
-    val_acc_swa =  []
-
+    train_acc_swa = []
+    val_acc_swa = []
 
 for epoch in range(start_epoch, args.num_epochs):
     start_time = time.time()
@@ -109,8 +107,10 @@ for epoch in range(start_epoch, args.num_epochs):
 
     if args.aswa:
         if len(val_acc_aswa) == 0 or val_acc_running[-1] > val_acc_aswa[-1]:
+            # ADD acc
             train_acc_aswa.append(train_acc_running[-1])
             val_acc_aswa.append(val_acc_running[-1])
+
             torch.save({"net": net.state_dict(), "train_acc": train_acc_aswa, "val_acc": val_acc_aswa,
                         "size": 1, "epoch": epoch}, f=f"{checkpoint_name}/ASWA_{args.model}_checkpoint.pt")
         else:
@@ -126,13 +126,23 @@ for epoch in range(start_epoch, args.num_epochs):
             ensemble_net.load_state_dict(ensemble_state_dict)
             val_provisional = compute_accuracy(ensemble_net, val_loader)
             if val_provisional > ensemble_state["val_acc"][-1]:
-                train_acc_aswa.append(compute_accuracy(net, train_loader))
+                # ADD acc
+                train_acc_aswa.append(compute_accuracy(ensemble_net, train_loader))
                 val_acc_aswa.append(val_provisional)
+
                 torch.save({"net": net.state_dict(),
                             "train_acc": train_acc_aswa,
                             "val_acc": val_acc_aswa,
                             "size": ensemble_state["size"] + 1,
                             "epoch": epoch}, f=f"{checkpoint_name}/ASWA_{args.model}_checkpoint.pt")
+            else:
+                ensemble_state = torch.load(f"{checkpoint_name}/ASWA_{args.model}_checkpoint.pt")
+                ensemble_net = type(net)()
+                ensemble_net.load_state_dict(ensemble_state_dict)
+
+                train_acc_aswa.append(compute_accuracy(ensemble_net, train_loader))
+                val_acc_aswa.append(compute_accuracy(ensemble_net, val_loader))
+
         print(f"| ASWA Val Acc: {val_acc_aswa[-1]}", end=" ")
 
     if args.swa:
@@ -142,25 +152,23 @@ for epoch in range(start_epoch, args.num_epochs):
             torch.save({"net": net.state_dict(), "train_acc": train_acc_swa, "val_acc": val_acc_swa,
                         "size": 1, "epoch": epoch}, f=f"{checkpoint_name}/SWA_{args.model}_checkpoint.pt")
         else:
-            # Reject or Soft Update
             ensemble_state = torch.load(f"{checkpoint_name}/SWA_{args.model}_checkpoint.pt")
             ensemble_state_dict = ensemble_state["net"]
             with torch.no_grad():
                 for k, parameters in net.state_dict().items():
                     ensemble_state_dict[k] = (ensemble_state_dict[k] * ensemble_state["size"] + parameters) / (
                             1 + ensemble_state["size"])
-            # Look-head Eval
             ensemble_net = type(net)()
             ensemble_net.load_state_dict(ensemble_state_dict)
-            train_acc_swa.append(compute_accuracy(net, train_loader))
+            train_acc_swa.append(compute_accuracy(ensemble_net, train_loader))
             val_acc_swa.append(compute_accuracy(ensemble_net, val_loader))
 
             torch.save({"net": net.state_dict(),
                         "train_acc": train_acc_swa,
                         "val_acc": val_acc_swa,
                         "size": ensemble_state["size"] + 1,
-                        "epoch": epoch}, f=f"{checkpoint_name}/ASWA_{args.model}_checkpoint.pt")
-        print(f"| SWA Val Acc: {val_acc_swa[-1]}",end="")
+                        "epoch": epoch}, f=f"{checkpoint_name}/SWA_{args.model}_checkpoint.pt")
+        print(f"| SWA Val Acc: {val_acc_swa[-1]}", end="")
     else:
         """Pass"""
 
